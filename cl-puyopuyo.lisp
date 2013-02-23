@@ -9,19 +9,19 @@
 (ql:quickload "bordeaux-threads")
 
 ;;width/height of bitmaos is 32x32
-(defvar *puyoW* 32)
-(defvar *puyoH* 32)
+(defconstant +puyo-width+ 32)
+(defconstant +puyo-height+ 32)
 
-(defvar *fieldW* 6)
-(defvar *fieldH* 12)
+(defconstant +field-width+ 6)
+(defconstant +field-height+ 12)
 
-(defvar *maxCols* 4)
+(defvar *max-cols* 4)
 
 (defvar *points* 0)
 (defvar *level* 1)
 
-(defparameter *field* (make-array (* *fieldW* *fieldH*)))
-(defparameter *solveField* (make-array (* *fieldW* *fieldH*)))
+(defparameter *field* (make-array (* +field-width+ +field-height+)))
+(defparameter *solve-field* (make-array (* +field-width+ +field-height+)))
 
 (defvar *state* nil)
 (defvar *run* nil)
@@ -47,39 +47,41 @@
 (defparameter *gameover* nil)
 
 
-(defun clearField ()
-  (loop for y from 0 to (- *fieldH* 1)  do
-       (loop for x from 0 to (- *fieldW* 1) do	    
-	    (setf (aref *field* (getOffset x y)) -1))))
+(defun clear-field ()
+  (dotimes (y +field-height+)
+    (dotimes (x +field-width+)
+      (setf (aref *field* (getOffset x y)) -1))))
 
-(defun printField ()
-  (loop for y from 0 to (- *fieldH* 1) do  
-       (loop for x from 0 to (- *fieldW* 1) do	    
-	    (format t "~D " (aref *field* (getOffset x y))))
-       (format t "~%")))
+(defun print-field ()
+  (dotimes (y +field-height+)
+    (dotimes (x +field-width+)
+      (format t "~D " (aref *field* (getOffset x y))))
+    (terpri)))
 
-(defun countElements (f elem)
-  (let ((n 0))
-    (dotimes (counter (length f))
-      (if (= (aref f counter) elem)
-	  (setf n (+ n 1))))
-    n))
+(defun count-elements (f elem)
+  (count elem f :test #'=))
 
-(defun copyField (src dst)
+(defun copy-field (src dst)
   (dotimes(i (length src))
     (setf (aref dst i) (aref src i))))
 
+(defun number-to-color (number)
+  (case number
+    (0 *blue*)
+    (1 *red*)
+    (2 *green*)
+    (3 *yellow*)))
 
-(defun drawField(f)
+(defun draw-field (f)
   ;;i guess there is a sneaky lispy way to cut this down somehow
-  (loop for y from 0 to (- *fieldH* 1)  do
-       (loop for x from 0 to (- *fieldW* 1) do	    
-	    (let ((col (aref f (getOffset x y))))
-	      (case col
-		(0 (lispbuilder-sdl:draw-surface-at-* *blue* (* x *puyoW*) (* y *puyoH*) :surface lispbuilder-sdl:*default-display*))
-		(1 (lispbuilder-sdl:draw-surface-at-* *red* (* x *puyoW*) (* y *puyoH*) :surface lispbuilder-sdl:*default-display*))
-		(2 (lispbuilder-sdl:draw-surface-at-* *green* (* x *puyoW*) (* y *puyoH*) :surface lispbuilder-sdl:*default-display*))
-		(3 (lispbuilder-sdl:draw-surface-at-* *yellow* (* x *puyoW*) (* y *puyoH*) :surface lispbuilder-sdl:*default-display*)))))))
+  (dotimes (y +field-height+)
+    (dotimes (x +field-width+)
+      (let ((col (aref f (getOffset x y))))
+        (lispbuilder-sdl:draw-surface-at-*
+         (number-to-color col)
+         (* x +puyo-width+)
+         (* y +puyo-height+)
+         :surface lispbuilder-sdl:*default-display*)))))
 
 (defun moveToLeft (f s)
   (setf *state* 'pause)
@@ -127,22 +129,22 @@
 	  ((= fx sx)
 	   (progn
 	     (if (and
-		  (= (aref *field* (getoffset (+ fx 1) fy)) -1) (< (+ fx 1 ) *fieldW*)
-		  (= (aref *field* (getoffset (+ sx 1) sy)) -1) (< (+ sx 1 ) *fieldW*))
+		  (= (aref *field* (getoffset (+ fx 1) fy)) -1) (< (+ fx 1 ) +field-width+)
+		  (= (aref *field* (getoffset (+ sx 1) sy)) -1) (< (+ sx 1 ) +field-width+))
 		 (progn
 		   (setf (slot-value f 'x) (+ fx 1))
 		   (setf (slot-value s 'x) (+ sx 1))))))
 	  ;;fx is left from sx
 	  ((< fx sx)
 	   (progn
-	     (if (and (= (aref *field* (getoffset (+ sx 1) sy)) -1) (< (+ sx 1) *fieldW*))
+	     (if (and (= (aref *field* (getoffset (+ sx 1) sy)) -1) (< (+ sx 1) +field-width+))
 		 (progn
 		   (setf (slot-value s 'x) (+ sx 1)) 
 		   (setf (slot-value f 'x) (+ fx 1))))))	       
 	  ;;sx is left from sx
 	  ((< sx fx)
 	   (progn
-	     (if (and (= (aref *field* (getoffset (+ fx 1) fy)) -1) (< (+ fx 1) *fieldW*))
+	     (if (and (= (aref *field* (getoffset (+ fx 1) fy)) -1) (< (+ fx 1) +field-width+))
 		 (progn
 		   (setf (slot-value f 'x) (+ fx 1))
 		   (setf (slot-value s 'x) (+ sx 1)))))))))
@@ -191,14 +193,14 @@
   (setf *state* 'unpause))
 
 (defun getOffset (x y)
-  (+ (* y *fieldW*) x))
+  (+ (* y +field-width+) x))
 
 (defun dropPuyos ()
   (setq *puyos* (sort *puyos* #'> :key #'(lambda (x) (slot-value x 'y))))
 
   (loop for p in *puyos* do
        (if (eq (slot-value p 'state) 'dropping)
-	   (if (and (< (+ (slot-value p 'y) 1) *fieldH*)
+	   (if (and (< (+ (slot-value p 'y) 1) +field-height+)
 		    (= (aref *field* (getOffset (slot-value p 'x) (+ (slot-value p 'y) 1))) -1))
 	       (setf (slot-value p 'y) (+ (slot-value p 'y) 1))
 	       (setf (slot-value p 'state) 'landed)))
@@ -213,7 +215,7 @@
 	1)))
 
 (defun backtrack (f x y col)
-  (if (and (>= x 0) (>= y 0) (< x *fieldW*) (< y *fieldH*))
+  (if (and (>= x 0) (>= y 0) (< x +field-width+) (< y +field-height+))
       (if (= (aref f (getOffset x y)) col)
 	  (progn
 	    (setf (aref f (getOffset x y)) 255)
@@ -227,18 +229,17 @@
 	  nil)))
 
 (defun sweeping ()
-  (dotimes (i (length *solveField*))
-    (if (= (aref *solveField* i) 255)
-	(progn
-	  (setf *points* (+ *points* 2))	  
-	  (if (< *level* 10)	      
-	      (if (= (mod *points* 50) 0)
-		  (incf *level*)))
+  (dotimes (i (length *solve-field*))
+    (when (= (aref *solve-field* i) 255)
+      (setf *points* (+ *points* 2))	  
+      (if (< *level* 10)	      
+          (if (= (mod *points* 50) 0)
+              (incf *level*)))
 
-	  (setf (aref *field* i) -1))))
+      (setf (aref *field* i) -1)))
 
-  (loop for p in *puyos* do
-       (pop *puyos*))
+  (dolist (p *puyos*)
+    (pop *puyos*))
   
   (fieldToPuyos)
 
@@ -246,7 +247,7 @@
        (backtrackPuyos)
        ;; (puyosToField *puyos* *field*)
        ;; (lispbuilder-sdl:clear-display lispbuilder-sdl:*white*)
-       ;; (drawField *field*)
+       ;; (draw-field *field*)
        ;; (lispbuilder-sdl:update-display)
        ;; (sleep 1)
      while (= (dropPuyos) 1)))
@@ -262,16 +263,16 @@
 
 (defun fieldToPuyos ()
   "this helper function will take a field->f and fill the lisp of puyos->p. this is only for testing purpose"
-  (loop for y from 0 to (- *fieldH* 1)  do
-       (loop for x from 0 to (- *fieldW* 1) do	    
+  (loop for y from 0 to (- +field-height+ 1)  do
+       (loop for x from 0 to (- +field-width+ 1) do	    
 	    (if (/= (aref *field* (getOffset x y)) -1)
 		(progn
 		  (push (make-puyo :x x :y y :col (aref *field* (getOffset x y)) :state 'dropping) *puyos*))))))
 
 (defun puyosToField (puyos f)
   "this helper function will take a list of puyos->p and place them into a field ->f"
-  (loop for y from 0 to (- *fieldH* 1)  do
-       (loop for x from 0 to (- *fieldW* 1) do	    
+  (loop for y from 0 to (- +field-height+ 1)  do
+       (loop for x from 0 to (- +field-width+ 1) do	    
 	    (setf (aref f (getOffset x y)) -1)))
   (loop for p in puyos do
        (setf (aref f (getOffset (slot-value p 'x) (slot-value p 'y))) (slot-value p 'col))))
@@ -294,16 +295,15 @@
     (close in)))
 
 (defun backtrackPuyos ()
-  (loop for p in *puyos* do	
-       (let ((col (slot-value p 'col))
-	     (x (slot-value p 'x))
-	     (y (slot-value p 'y)))
-	 (if (member col '(0 1 2 3))
-	     (progn
-	       (copyField *field* *solveField*)
-	       (backtrack *solveField* x y col)
-	       (if (>= (countElements *solveField* 255) 4)
-		     (sweeping)))))))
+  (dolist (p *puyos*)
+    (let ((col (slot-value p 'col))
+          (x (slot-value p 'x))
+          (y (slot-value p 'y)))
+      (when (member col '(0 1 2 3))        
+        (copy-field *field* *solve-field*)
+        (backtrack *solve-field* x y col)
+        (if (>= (count-elements *solve-field* 255) 4)
+            (sweeping))))))
 
 ;;start / main
 (defun main ()
@@ -314,8 +314,14 @@
   ;;(setf *first*  (make-puyo :x 3 :y 1 :col 1 :state 'dropping))
   ;;(setf *second* (make-puyo :x 3 :y 2 :col 2 :state 'dropping))
 
-  (setf *first*  (make-puyo :x 2 :y 0 :col (random *maxCols*) :state 'dropping))
-  (setf *second* (make-puyo :x 3 :y 0 :col (random *maxCols*) :state 'dropping))
+  (setf *first*  (make-puyo :x 2
+                            :y 0
+                            :col (random *max-cols*)
+                            :state 'dropping))
+  (setf *second* (make-puyo :x 3
+                            :y 0
+                            :col (random *max-cols*)
+                            :state 'dropping))
   
   (setf *level* 0)
   (setf *points* 0)
@@ -333,12 +339,12 @@
   ;;the puyo sprites are 32x32 pixels, so the playfield is 6*32 wide  and 12*32 heigh
   ;;we need double with, for displaying points and next puyos right from the playfield
 					;(SETF (SDL:FRAME-RATE) 60)
-  (lispbuilder-sdl:window  (* (* *puyoW* *fieldW*) 2) (* *puyoH* *fieldH*))
+  (lispbuilder-sdl:window  (* (* +puyo-width+ +field-width+) 2) (* +puyo-height+ +field-height+))
   
   (lispbuilder-sdl:init-subsystems lispbuilder-sdl:sdl-init-timer)
   (lispbuilder-sdl:clear-display lispbuilder-sdl:*white*)
   
-  (clearField)
+  (clear-field)
   (bordeaux-threads:make-thread #'dropPuyo-thread :name "dropPuyo-thread")
 
   ;;test stuff
@@ -379,20 +385,20 @@
 
     (:idle ()
 	   (lispbuilder-sdl:clear-display lispbuilder-sdl:*white*)
-	   (lispbuilder-sdl:draw-string-solid-* (format nil "Puyopuyo") (+ (* *fieldW* *puyoW*) 20) 10 :color (sdl:color :r 0 :g 0 :b 0))
-	   (lispbuilder-sdl-gfx:draw-line-* (* *fieldW* *puyoW*) 0 (* *fieldW* *puyoW*) (* *fieldH* *puyoH*) :surface sdl:*default-display*  :color (sdl:color :r 0 :g 0 :b 0))
+	   (lispbuilder-sdl:draw-string-solid-* (format nil "Puyopuyo") (+ (* +field-width+ +puyo-width+) 20) 10 :color (sdl:color :r 0 :g 0 :b 0))
+	   (lispbuilder-sdl-gfx:draw-line-* (* +field-width+ +puyo-width+) 0 (* +field-width+ +puyo-width+) (* +field-height+ +puyo-height+) :surface sdl:*default-display*  :color (sdl:color :r 0 :g 0 :b 0))
 	   
 	   (puyosToField *puyos* *field*)
 
 	   (if (eq *run* '0)
 	       (lispbuilder-sdl:draw-surface-at-* *gameover* 0 0 :surface lispbuilder-sdl:*default-display*)
-	       (drawField *field*))
+	       (draw-field *field*))
 	   
 	   (if (eq *state* 'pause)
-	       (lispbuilder-sdl:draw-string-solid-* (format nil "Paused") (+ (* *fieldW* *puyoW*) 50) (/ (* *fieldH* *puyoH*) 2) :color (sdl:color :r 0 :g 0 :b 0))
+	       (lispbuilder-sdl:draw-string-solid-* (format nil "Paused") (+ (* +field-width+ +puyo-width+) 50) (/ (* +field-height+ +puyo-height+) 2) :color (sdl:color :r 0 :g 0 :b 0))
 	       (progn
-		 (lispbuilder-sdl:draw-string-solid-* (format nil "~D" *points*) (+ (* *fieldW* *puyoW*) 80) (/ (* *fieldH* *puyoH*) 2) :color (sdl:color :r 0 :g 0 :b 0))
-		 (lispbuilder-sdl:draw-string-solid-* (format nil "Level ~D" *level*) (+ (* *fieldW* *puyoW*) 25) (+ (/ (* *fieldH* *puyoH*) 2) 50) :color (sdl:color :r 0 :g 0 :b 0))))
+		 (lispbuilder-sdl:draw-string-solid-* (format nil "~D" *points*) (+ (* +field-width+ +puyo-width+) 80) (/ (* +field-height+ +puyo-height+) 2) :color (sdl:color :r 0 :g 0 :b 0))
+		 (lispbuilder-sdl:draw-string-solid-* (format nil "Level ~D" *level*) (+ (* +field-width+ +puyo-width+) 25) (+ (/ (* +field-height+ +puyo-height+) 2) 50) :color (sdl:color :r 0 :g 0 :b 0))))
 	   
 	   (lispbuilder-sdl:update-display)
 	   (if (eq *state* 'newPuyos)
@@ -404,8 +410,8 @@
 		       
 		       (backtrackPuyos)
 		       ;; we need to create new objects. what is the impact on memory / gc
-		       (setf *first*  (make-puyo :x 2 :y 0 :col (random *maxCols*) :state 'dropping))
-		       (setf *second*  (make-puyo :x 3 :y 0 :col (random *maxCols*) :state 'dropping))
+		       (setf *first*  (make-puyo :x 2 :y 0 :col (random *max-cols*) :state 'dropping))
+		       (setf *second*  (make-puyo :x 3 :y 0 :col (random *max-cols*) :state 'dropping))
 		       
 		       (push *first* *puyos*)
 		       (push *second* *puyos*)
