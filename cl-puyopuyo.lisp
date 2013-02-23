@@ -232,9 +232,9 @@
   (dotimes (i (length *solve-field*))
     (when (= (aref *solve-field* i) 255)
       (setf *points* (+ *points* 2))	  
-      (if (< *level* 10)	      
-          (if (= (mod *points* 50) 0)
-              (incf *level*)))
+      (when (< *level* 10)	      
+        (when (zerop (mod *points* 50))
+          (incf *level*)))
 
       (setf (aref *field* i) -1)))
 
@@ -254,12 +254,11 @@
 
 (defun dropPuyo-thread ()
   (loop do
-       (if (not (or (eq *state* 'computing) (eq *state* 'pause)))
-	   (progn
-	     (sleep (- 1 (/ *level* 10)))
-	     (if (eq (dropPuyos) 0)
-		 (setf *state* 'newPuyos))))
-     while(= 1 *run*)))
+    (unless (or (eq *state* 'computing) (eq *state* 'pause))
+      (sleep (- 1 (/ *level* 10)))
+      (if (eq (dropPuyos) 0)
+          (setf *state* 'newPuyos)))
+     while (= 1 *run*)))
 
 (defun fieldToPuyos ()
   "this helper function will take a field->f and fill the lisp of puyos->p. this is only for testing purpose"
@@ -282,16 +281,15 @@
   (let ((in (open "test.txt"))
 	(l 0)
 	(data 0))    
-    (loop for i from 0 to (- (length f) 1) do
-	 (setf data (digit-char-p (read-char in)))
-	 (if (eq data nil)
-	     (setf data -1))
-	 (setf (aref f i) data) 
-	 (setf l (+ l 1))
-	 (if (eq l 6)
-	     (progn
-	       (read-char in)
-	       (setf l 0))))
+    (dotimes (i (length f))
+      (setf data (digit-char-p (read-char in)))
+      (unless data
+        (setf data -1))
+      (setf (aref f i) data) 
+      (incf l)
+      (when (= l 6)
+        (read-char in)
+        (setf l 0)))
     (close in)))
 
 (defun backtrackPuyos ()
@@ -339,7 +337,8 @@
   ;;the puyo sprites are 32x32 pixels, so the playfield is 6*32 wide  and 12*32 heigh
   ;;we need double with, for displaying points and next puyos right from the playfield
 					;(SETF (SDL:FRAME-RATE) 60)
-  (lispbuilder-sdl:window  (* (* +puyo-width+ +field-width+) 2) (* +puyo-height+ +field-height+))
+  (lispbuilder-sdl:window  (* 2 +puyo-width+ +field-width+)
+                           (* +puyo-height+ +field-height+))
   
   (lispbuilder-sdl:init-subsystems lispbuilder-sdl:sdl-init-timer)
   (lispbuilder-sdl:clear-display lispbuilder-sdl:*white*)
@@ -352,11 +351,11 @@
   ;;(fieldToPuyos)
   
   ;;sdl surface pictures for blitting
-  (defparameter *blue* (lispbuilder-sdl:load-image "puyo_blue.png"))
-  (defparameter *red* (lispbuilder-sdl:load-image "puyo_red.png"))
-  (defparameter *green* (lispbuilder-sdl:load-image "puyo_green.png"))
-  (defparameter *yellow* (lispbuilder-sdl:load-image "puyo_yellow.png"))
-  (defparameter *gameover* (lispbuilder-sdl:load-image "gameover.png"))
+  (setf *blue* (lispbuilder-sdl:load-image "puyo_blue.png")
+        *red* (lispbuilder-sdl:load-image "puyo_red.png")
+        *green* (lispbuilder-sdl:load-image "puyo_green.png")
+        *yellow* (lispbuilder-sdl:load-image "puyo_yellow.png")
+        *gameover* (lispbuilder-sdl:load-image "gameover.png"))
 
 
   ;;game-loop
@@ -385,12 +384,20 @@
 
     (:idle ()
 	   (lispbuilder-sdl:clear-display lispbuilder-sdl:*white*)
-	   (lispbuilder-sdl:draw-string-solid-* (format nil "Puyopuyo") (+ (* +field-width+ +puyo-width+) 20) 10 :color (sdl:color :r 0 :g 0 :b 0))
-	   (lispbuilder-sdl-gfx:draw-line-* (* +field-width+ +puyo-width+) 0 (* +field-width+ +puyo-width+) (* +field-height+ +puyo-height+) :surface sdl:*default-display*  :color (sdl:color :r 0 :g 0 :b 0))
+	   (lispbuilder-sdl:draw-string-solid-*
+            "Puyopuyo"
+            (+ 20 (* +field-width+ +puyo-width+))
+            10
+            :color (sdl:color :r 0 :g 0 :b 0))
+	   (lispbuilder-sdl-gfx:draw-line-*
+            (* +field-width+ +puyo-width+) 0
+            (* +field-width+ +puyo-width+) (* +field-height+ +puyo-height+)
+            :surface sdl:*default-display*
+            :color (sdl:color :r 0 :g 0 :b 0))
 	   
 	   (puyosToField *puyos* *field*)
 
-	   (if (eq *run* '0)
+	   (if (eq *run* 0)
 	       (lispbuilder-sdl:draw-surface-at-* *gameover* 0 0 :surface lispbuilder-sdl:*default-display*)
 	       (draw-field *field*))
 	   
@@ -401,21 +408,26 @@
 		 (lispbuilder-sdl:draw-string-solid-* (format nil "Level ~D" *level*) (+ (* +field-width+ +puyo-width+) 25) (+ (/ (* +field-height+ +puyo-height+) 2) 50) :color (sdl:color :r 0 :g 0 :b 0))))
 	   
 	   (lispbuilder-sdl:update-display)
-	   (if (eq *state* 'newPuyos)
-	       (progn
-		 (if (or (/= (aref *field* (getOffset 2 0)) -1)
-			 (/= (aref *field* (getOffset 3 0)) -1))
-		     (setf *run* 0)
-		     (progn
-		       
-		       (backtrackPuyos)
-		       ;; we need to create new objects. what is the impact on memory / gc
-		       (setf *first*  (make-puyo :x 2 :y 0 :col (random *max-cols*) :state 'dropping))
-		       (setf *second*  (make-puyo :x 3 :y 0 :col (random *max-cols*) :state 'dropping))
-		       
-		       (push *first* *puyos*)
-		       (push *second* *puyos*)
-		       (setf *state* 'unpause))))))))
+	   (when (eq *state* 'newPuyos)
+             (if (or (/= (aref *field* (getOffset 2 0)) -1)
+                     (/= (aref *field* (getOffset 3 0)) -1))
+                 (setf *run* 0)
+                 (progn
+                   (backtrackPuyos)
+                   ;; we need to create new objects. what is the
+                   ;; impact on memory / gc
+                   (setf *first*  (make-puyo :x 2
+                                             :y 0
+                                             :col (random *max-cols*)
+                                             :state 'dropping))
+                   (setf *second*  (make-puyo :x 3
+                                              :y 0
+                                              :col (random *max-cols*)
+                                              :state 'dropping))
+                   
+                   (push *first* *puyos*)
+                   (push *second* *puyos*)
+                   (setf *state* 'unpause)))))))
 
 
 
