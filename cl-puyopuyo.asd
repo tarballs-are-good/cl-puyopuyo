@@ -6,7 +6,9 @@
   :author "Your Name <your.name@example.com>"
   :license "Specify license here"
   :depends-on (#:lispbuilder-sdl
-               #:bordeaux-threads)
+               #:bordeaux-threads
+               #:lispbuilder-sdl-ttf
+               #:lispbuilder-sdl-gfx)
   :components ((:file "package")
                (:file "cl-puyopuyo")))
 

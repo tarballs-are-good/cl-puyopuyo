@@ -4,10 +4,6 @@
 
 (in-package :cl-puyopuyo)
 
-(ql:quickload "lispbuilder-sdl-ttf")
-(ql:quickload "lispbuilder-sdl-gfx")
-(ql:quickload "bordeaux-threads")
-
 ;;width/height of bitmaos is 32x32
 (defconstant +puyo-width+ 32)
 (defconstant +puyo-height+ 32)
